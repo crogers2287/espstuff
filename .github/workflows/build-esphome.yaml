@@ -1,0 +1,79 @@
+name: Build ESPHome Firmware
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ESPHome Firmware
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - esp32-c3-supermini-smoke-fan.yaml
+          # ESP32-C6 configs may fail due to ADC issues - kept for reference
+          # - esp32-c6-smoke-sensor.yaml
+          # - esp32-c6-smoke-sensor-analog.yaml
+          # - esp32-c6-smoke-sensor-resistance.yaml
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build ESPHome firmware
+        uses: esphome/build-action@v4
+        id: esphome-build
+        with:
+          yaml-file: ${{ matrix.config }}
+          version: latest
+          cache: true
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.config }}-firmware
+          path: |
+            ${{ steps.esphome-build.outputs.name }}*.bin
+            ${{ steps.esphome-build.outputs.name }}*.elf
+            ${{ steps.esphome-build.outputs.name }}.factory.bin
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Create Release Assets (on tag push)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.esphome-build.outputs.name }}*.bin
+            ${{ steps.esphome-build.outputs.name }}*.elf
+            ${{ steps.esphome-build.outputs.name }}.factory.bin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  combine-artifacts:
+    name: Combine All Firmware
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: firmware
+
+      - name: Display structure
+        run: ls -R firmware
+
+      - name: Upload combined firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-firmware-builds
+          path: firmware/
+          retention-days: 90

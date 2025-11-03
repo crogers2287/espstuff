@@ -1,0 +1,103 @@
+esphome:
+  name: esp32c3-smoke-sensor
+  friendly_name: "Smoking Room Smoke Sensor"
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "MQ2 sensor warming up for 60 seconds..."
+      - delay: 60s
+      - logger.log: "MQ2 sensor ready!"
+
+esp32:
+  board: esp32-c3-devkitm-1
+  variant: esp32c3
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  level: DEBUG
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+# Enable OTA updates
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# WiFi configuration
+wifi:
+  ssid: AhoyIOT
+  password: 106granada
+
+  fast_connect: true
+  reboot_timeout: 15min
+
+  # Enable fallback hotspot
+  ap:
+    ssid: "ESP32C3-Smoke-Sensor"
+    password: "smokedetector123"
+
+# Captive portal for easy setup
+captive_portal:
+
+# Web server for diagnostics
+web_server:
+  port: 80
+
+# Sensors
+sensor:
+  # MQ2 Analog sensor (A0 -> GPIO4 is ADC1_CH4 on ESP32-C3)
+  - platform: adc
+    pin: GPIO4
+    name: "MQ2 Smoke Level"
+    id: smoke_sensor
+    update_interval: 2s
+    attenuation: 11db
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+
+  # Uptime sensor
+  - platform: uptime
+    name: "Smoke Sensor Uptime"
+
+  # WiFi signal strength
+  - platform: wifi_signal
+    name: "Smoke Sensor WiFi Signal"
+    update_interval: 60s
+
+# Binary sensor for MQ2 Digital output
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO3
+      mode:
+        input: true
+    name: "MQ2 Smoke Detected (Digital)"
+    device_class: smoke
+    filters:
+      - delayed_on: 100ms
+      - delayed_off: 2s
+
+  # Binary sensor triggered by analog threshold
+  - platform: template
+    name: "Smoke Detected (Threshold)"
+    id: smoke_detected_threshold
+    device_class: smoke
+    lambda: |-
+      return id(smoke_sensor).state > 0.8;
+    filters:
+      - delayed_on: 500ms
+      - delayed_off: 5s
+
+# Status LED (built-in on GPIO8 for ESP32-C3 Super Mini)
+status_led:
+  pin: GPIO8
+
+# Optional: Button to manually restart
+button:
+  - platform: restart
+    name: "Restart Smoke Sensor"
