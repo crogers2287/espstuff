@@ -27,12 +27,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build ESPHome firmware
-        uses: esphome/build-action@v4
+        uses: esphome/build-action@v3
         id: esphome-build
         with:
-          yaml-file: ${{ matrix.config }}
+          yaml_file: ${{ matrix.config }}
           version: latest
-          cache: true
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
